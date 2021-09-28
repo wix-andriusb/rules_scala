@@ -95,7 +95,7 @@ public final class Worker {
 
         } catch (IOException e) {
           // for now we swallow IOExceptions when
-          // reading/writing proto
+          // reading proto
         }
       }
     } finally {
@@ -139,7 +139,8 @@ public final class Worker {
       }
       System.gc();
     } catch (IOException exception) {
-      // TODO: propagate exception
+      // for now we swallow IOExceptions when
+      // writing proto
     } finally {
       outStream.reset();
     }
