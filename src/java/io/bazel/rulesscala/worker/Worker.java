@@ -16,17 +16,20 @@ import java.security.Permission;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 /**
  * A base for JVM workers.
  *
- * <p>This supports regular workers as well as persisent workers. It does not (yet) support
- * multiplexed workers.
+ * <p>This supports regular workers as well as persisent workers.
  *
  * <p>Worker implementations should implement the `Worker.Interface` interface and provide a main
  * method that calls `Worker.workerMain`.
  */
 public final class Worker {
+
+  private static ExecutorService executorService = Executors.newFixedThreadPool(10);
 
   public static interface Interface {
     public void work(String[] args) throws Exception;
@@ -81,23 +84,13 @@ public final class Worker {
             break;
           }
 
-          int code = 0;
-
-          try {
-            workerInterface.work(stringListToArray(request.getArgumentsList()));
-          } catch (ExitTrapped e) {
-            code = e.code;
-          } catch (Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-            code = 1;
+          if (request.getRequestId() == 0) {
+            processWorkRequest(workerInterface, request, stdout, outStream, out);
+          } else {
+            executorService.submit(() -> {
+              processWorkRequest(workerInterface, request, stdout, outStream, out);
+            });
           }
-
-          WorkerProtocol.WorkResponse.newBuilder()
-              .setExitCode(code)
-              .setOutput(outStream.toString())
-              .build()
-              .writeDelimitedTo(stdout);
 
         } catch (IOException e) {
           // for now we swallow IOExceptions when
@@ -112,6 +105,39 @@ public final class Worker {
       System.setIn(stdin);
       System.setOut(stdout);
       System.setErr(stderr);
+    }
+  }
+
+  private static Object lock = new Object();
+
+  private static void processWorkRequest(Interface workerInterface, WorkerProtocol.WorkRequest request, PrintStream stdout, ThreadOutputStream outStream, PrintStream out) {
+    int code = 0;
+
+    try {
+      workerInterface.work(stringListToArray(request.getArgumentsList()));
+    } catch (ExitTrapped e) {
+      code = e.code;
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      e.printStackTrace();
+      code = 1;
+    }
+
+    WorkerProtocol.WorkResponse response = WorkerProtocol.WorkResponse.newBuilder()
+        .setExitCode(code)
+        .setOutput(outStream.toString())
+        .setRequestId(request.getRequestId())
+        .build();
+
+    try {
+      synchronized(lock) {
+        response.writeDelimitedTo(stdout);
+        out.flush();
+        outStream.reset();
+      }
+      System.gc();
+    } catch (IOException exception) {
+        // TODO: propagate exception
     }
   }
 
