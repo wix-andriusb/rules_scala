@@ -26,7 +26,7 @@ class ScalacWorker implements Worker.Interface {
   }
 
   @Override
-  public void work(String[] args) throws Exception {
+  public void work(String[] args, PrintStream out, PrintStream err) throws Exception {
     Path tmpPath = null;
     try {
       CompileOptions ops = new CompileOptions(args);

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -32,7 +33,7 @@ public final class Worker {
   private static ExecutorService executorService = Executors.newCachedThreadPool();
 
   public static interface Interface {
-    public void work(String[] args) throws Exception;
+    public void work(String[] args, PrintStream out, PrintStream err) throws Exception;
   }
 
   /**
@@ -60,16 +61,9 @@ public final class Worker {
         });
 
     InputStream stdin = System.in;
-    PrintStream stdout = System.out;
-    PrintStream stderr = System.err;
-    ThreadOutputStream outStream = new ThreadOutputStream();
-    PrintStream out = new PrintStream(outStream);
 
     // We can't support stdin, so assign it to read from an empty buffer
     System.setIn(new ByteArrayInputStream(new byte[0]));
-
-    System.setOut(out);
-    System.setErr(out);
 
     try {
       while (true) {
@@ -85,11 +79,11 @@ public final class Worker {
           }
 
           if (request.getRequestId() == 0) {
-            processWorkRequest(workerInterface, request, stdout, outStream, out);
+            processWorkRequest(workerInterface, request);
           } else {
             executorService.submit(
                 () -> {
-                  processWorkRequest(workerInterface, request, stdout, outStream, out);
+                  processWorkRequest(workerInterface, request);
                 });
           }
 
@@ -100,8 +94,6 @@ public final class Worker {
       }
     } finally {
       System.setIn(stdin);
-      System.setOut(stdout);
-      System.setErr(stderr);
     }
   }
 
@@ -109,14 +101,14 @@ public final class Worker {
 
   private static void processWorkRequest(
       Interface workerInterface,
-      WorkerProtocol.WorkRequest request,
-      PrintStream stdout,
-      ThreadOutputStream outStream,
-      PrintStream out) {
+      WorkerProtocol.WorkRequest request) {
     int code = 0;
+    SmartByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
+    PrintStream out = new PrintStream(outStream);
+
 
     try {
-      workerInterface.work(stringListToArray(request.getArgumentsList()));
+      workerInterface.work(stringListToArray(request.getArgumentsList()), out, out);
     } catch (ExitTrapped e) {
       code = e.code;
     } catch (Exception e) {
@@ -135,7 +127,7 @@ public final class Worker {
               .build();
 
       synchronized (lock) {
-        response.writeDelimitedTo(stdout);
+        response.writeDelimitedTo(System.out);
       }
       System.gc();
     } catch (IOException exception) {
@@ -157,7 +149,7 @@ public final class Worker {
     } else {
       args = workerArgs;
     }
-    workerInterface.work(args);
+    workerInterface.work(args, System.out, System.err);
   }
 
   /**
@@ -190,47 +182,6 @@ public final class Worker {
       if (this.isOversized()) {
         this.buf = new byte[DEFAULT_SIZE];
       }
-    }
-  }
-
-  static class ThreadOutputStream extends OutputStream {
-    private static AbstractMap<Long, SmartByteArrayOutputStream> map =
-        new ConcurrentHashMap<Long, SmartByteArrayOutputStream>();
-
-    private static SmartByteArrayOutputStream getStream() {
-      Long id = Thread.currentThread().getId();
-      return map.computeIfAbsent(id, key -> new SmartByteArrayOutputStream());
-    }
-
-    public ThreadOutputStream() {}
-
-    @Override
-    public void close() throws IOException {
-      getStream().close();
-    }
-
-    @Override
-    public void flush() throws IOException {
-      getStream().flush();
-    }
-
-    @Override
-    public void write(byte[] b, int off, int len) throws IOException {
-      getStream().write(b, off, len);
-    }
-
-    @Override
-    public void write(int b) throws IOException {
-      getStream().write(b);
-    }
-
-    public void reset() {
-      getStream().reset();
-    }
-
-    @Override
-    public String toString() {
-      return getStream().toString();
     }
   }
 
