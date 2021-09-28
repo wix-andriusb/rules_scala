@@ -1,6 +1,7 @@
 package io.bazel.rulesscala.scalac;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -13,9 +14,13 @@ public class ReportableMainClass extends MainClass {
   private Global compiler;
   private Reporter reporter;
   private final CompileOptions ops;
+  private PrintStream out;
+  private PrintStream err;
 
-  public ReportableMainClass(CompileOptions ops) {
+  public ReportableMainClass(CompileOptions ops, PrintStream out, PrintStream err) {
     this.ops = ops;
+    this.out = out;
+    this.err = err;
   }
 
   @Override
@@ -23,7 +28,10 @@ public class ReportableMainClass extends MainClass {
     if (!ops.enableDiagnosticsReport) {
       createDiagnosticsFile();
       Global global = super.newCompiler();
-      reporter = global.reporter();
+
+      Settings settings = super.settings();
+      reporter = new ProtoReporter(settings, out, err);
+
       return global;
     }
 
@@ -31,7 +39,7 @@ public class ReportableMainClass extends MainClass {
       createDiagnosticsFile();
 
       Settings settings = super.settings();
-      reporter = new ProtoReporter(settings);
+      reporter = new ProtoReporter(settings, out, err);
 
       compiler = new Global(settings, reporter);
     }

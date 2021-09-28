@@ -9,7 +9,7 @@ import protocbridge.{ProtocBridge, ProtocCodeGenerator}
 
 import scala.sys.process._
 
-object ScalaPBWorker extends Worker.Interface {
+object ScalaPBWorker extends Worker.Interface {a
 
   private val protoc = {
     val executable = sys.props.getOrElse("PROTOC", sys.error("PROTOC not supplied"))
