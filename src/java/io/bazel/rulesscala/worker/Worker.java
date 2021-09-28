@@ -1,23 +1,23 @@
 package io.bazel.rulesscala.worker;
 
 import com.google.devtools.build.lib.worker.WorkerProtocol;
-import java.util.AbstractMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.Permission;
+import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
 
 /**
  * A base for JVM workers.
@@ -87,9 +87,10 @@ public final class Worker {
           if (request.getRequestId() == 0) {
             processWorkRequest(workerInterface, request, stdout, outStream, out);
           } else {
-            executorService.submit(() -> {
-              processWorkRequest(workerInterface, request, stdout, outStream, out);
-            });
+            executorService.submit(
+                () -> {
+                  processWorkRequest(workerInterface, request, stdout, outStream, out);
+                });
           }
 
         } catch (IOException e) {
@@ -110,7 +111,12 @@ public final class Worker {
 
   private static Object lock = new Object();
 
-  private static void processWorkRequest(Interface workerInterface, WorkerProtocol.WorkRequest request, PrintStream stdout, ThreadOutputStream outStream, PrintStream out) {
+  private static void processWorkRequest(
+      Interface workerInterface,
+      WorkerProtocol.WorkRequest request,
+      PrintStream stdout,
+      ThreadOutputStream outStream,
+      PrintStream out) {
     int code = 0;
 
     try {
@@ -123,21 +129,22 @@ public final class Worker {
       code = 1;
     }
 
-    WorkerProtocol.WorkResponse response = WorkerProtocol.WorkResponse.newBuilder()
-        .setExitCode(code)
-        .setOutput(outStream.toString())
-        .setRequestId(request.getRequestId())
-        .build();
+    WorkerProtocol.WorkResponse response =
+        WorkerProtocol.WorkResponse.newBuilder()
+            .setExitCode(code)
+            .setOutput(outStream.toString())
+            .setRequestId(request.getRequestId())
+            .build();
 
     try {
-      synchronized(lock) {
+      synchronized (lock) {
         response.writeDelimitedTo(stdout);
         out.flush();
         outStream.reset();
       }
       System.gc();
     } catch (IOException exception) {
-        // TODO: propagate exception
+      // TODO: propagate exception
     }
   }
 
@@ -189,7 +196,8 @@ public final class Worker {
   }
 
   static class ThreadOutputStream extends OutputStream {
-    private static AbstractMap<Long, SmartByteArrayOutputStream> map = new ConcurrentHashMap<Long, SmartByteArrayOutputStream>();
+    private static AbstractMap<Long, SmartByteArrayOutputStream> map =
+        new ConcurrentHashMap<Long, SmartByteArrayOutputStream>();
 
     private static SmartByteArrayOutputStream getStream() {
       Long id = Thread.currentThread().getId();
@@ -214,7 +222,7 @@ public final class Worker {
     }
 
     @Override
-    public void write(int b) throws IOException  {
+    public void write(int b) throws IOException {
       getStream().write(b);
     }
 
