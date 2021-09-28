@@ -79,23 +79,22 @@ public final class Worker {
         } catch (ExitTrapped e) {
           code = e.code;
         } catch (Exception e) {
-          System.err.println(e.getMessage());
-          e.printStackTrace();
+          out.println(e.getMessage());
+          e.printStackTrace(out);
           code = 1;
         }
 
+        out.flush();
         WorkerProtocol.WorkResponse.newBuilder()
             .setExitCode(code)
             .setOutput(outStream.toString())
             .build()
-            .writeDelimitedTo(out);
+            .writeDelimitedTo(System.out);
 
       } catch (IOException e) {
         // for now we swallow IOExceptions when
         // reading/writing proto
       } finally {
-        out.flush();
-        outStream.reset();
         System.gc();
       }
     }
