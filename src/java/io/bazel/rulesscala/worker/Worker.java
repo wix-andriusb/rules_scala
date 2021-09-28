@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 public final class Worker {
 
   public static interface Interface {
-    public void work(String[] args) throws Exception;
+    public void work(String[] args, PrintStream out, PrintStream err) throws Exception;
   }
 
   /**
@@ -75,7 +75,7 @@ public final class Worker {
         int code = 0;
 
         try {
-          workerInterface.work(stringListToArray(request.getArgumentsList()));
+          workerInterface.work(stringListToArray(request.getArgumentsList()), out, out);
         } catch (ExitTrapped e) {
           code = e.code;
         } catch (Exception e) {
@@ -111,7 +111,7 @@ public final class Worker {
     } else {
       args = workerArgs;
     }
-    workerInterface.work(args);
+    workerInterface.work(args, null, null);
   }
 
   /**

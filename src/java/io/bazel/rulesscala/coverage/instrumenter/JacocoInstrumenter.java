@@ -6,6 +6,7 @@ import io.bazel.rulesscala.worker.Worker;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
@@ -28,7 +29,7 @@ public final class JacocoInstrumenter implements Worker.Interface {
   }
 
   @Override
-  public void work(String[] args) throws Exception {
+  public void work(String[] args, PrintStream out, PrintStream err) throws Exception {
     Instrumenter jacoco = new Instrumenter(new OfflineInstrumentationAccessGenerator());
     processArg(jacoco, args);
   }
