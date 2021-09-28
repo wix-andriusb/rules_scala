@@ -54,61 +54,50 @@ public final class Worker {
         });
 
     InputStream stdin = System.in;
-    PrintStream stdout = System.out;
-    PrintStream stderr = System.err;
-    ByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
-    PrintStream out = new PrintStream(outStream);
 
     // We can't support stdin, so assign it to read from an empty buffer
     System.setIn(new ByteArrayInputStream(new byte[0]));
 
-    System.setOut(out);
-    System.setErr(out);
+    while (true) {
+      ByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
+      PrintStream out = new PrintStream(outStream);
+      try {
+        WorkerProtocol.WorkRequest request = WorkerProtocol.WorkRequest.parseDelimitedFrom(stdin);
 
-    try {
-      while (true) {
-        try {
-          WorkerProtocol.WorkRequest request = WorkerProtocol.WorkRequest.parseDelimitedFrom(stdin);
-
-          // The request will be null if stdin is closed.  We're
-          // not sure if this happens in TheRealWorld™ but it is
-          // useful for testing (to shut down a persistent
-          // worker process).
-          if (request == null) {
-            break;
-          }
-
-          int code = 0;
-
-          try {
-            workerInterface.work(stringListToArray(request.getArgumentsList()));
-          } catch (ExitTrapped e) {
-            code = e.code;
-          } catch (Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-            code = 1;
-          }
-
-          WorkerProtocol.WorkResponse.newBuilder()
-              .setExitCode(code)
-              .setOutput(outStream.toString())
-              .build()
-              .writeDelimitedTo(stdout);
-
-        } catch (IOException e) {
-          // for now we swallow IOExceptions when
-          // reading/writing proto
-        } finally {
-          out.flush();
-          outStream.reset();
-          System.gc();
+        // The request will be null if stdin is closed.  We're
+        // not sure if this happens in TheRealWorld™ but it is
+        // useful for testing (to shut down a persistent
+        // worker process).
+        if (request == null) {
+          break;
         }
+
+        int code = 0;
+
+        try {
+          workerInterface.work(stringListToArray(request.getArgumentsList()));
+        } catch (ExitTrapped e) {
+          code = e.code;
+        } catch (Exception e) {
+          System.err.println(e.getMessage());
+          e.printStackTrace();
+          code = 1;
+        }
+
+        WorkerProtocol.WorkResponse.newBuilder()
+            .setExitCode(code)
+            .setOutput(outStream.toString())
+            .build()
+            .writeDelimitedTo(out);
+
+      } catch (IOException e) {
+        // for now we swallow IOExceptions when
+        // reading/writing proto
+      } finally {
+        out.flush();
+        outStream.reset();
+        System.gc();
       }
-    } finally {
-      System.setIn(stdin);
-      System.setOut(stdout);
-      System.setErr(stderr);
     }
   }
 
