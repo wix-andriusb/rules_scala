@@ -59,7 +59,7 @@ class ScalacWorker implements Worker.Interface {
        * sources).
        */
       if (scalaSources.length > 0) {
-        compileScalaSources(ops, scalaSources, tmpPath);
+        compileScalaSources(ops, scalaSources, tmpPath, out, err);
       }
 
       /** Copy the resources */
@@ -228,7 +228,7 @@ class ScalacWorker implements Worker.Interface {
     return pluginParams.toArray(new String[pluginParams.size()]);
   }
 
-  private static void compileScalaSources(CompileOptions ops, String[] scalaSources, Path tmpPath)
+  private static void compileScalaSources(CompileOptions ops, String[] scalaSources, Path tmpPath, PrintStream out, PrintStream err)
       throws IllegalAccessException, IOException {
 
     String[] pluginArgs = buildPluginArgs(ops.plugins);
@@ -241,10 +241,11 @@ class ScalacWorker implements Worker.Interface {
     String[] compilerArgs =
         merge(ops.scalaOpts, pluginArgs, constParams, pluginParams, scalaSources);
 
-    ReportableMainClass comp = new ReportableMainClass(ops);
+    ReportableMainClass comp = new ReportableMainClass(ops, out, err);
 
     long start = System.currentTimeMillis();
     try {
+      out.println("process");
       comp.process(compilerArgs);
     } catch (Throwable ex) {
       if (ex.toString().contains("scala.reflect.internal.Types$TypeError")) {
