@@ -1,11 +1,14 @@
 package io.bazel.rulesscala.worker;
 
 import com.google.devtools.build.lib.worker.WorkerProtocol;
+import java.util.AbstractMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -56,7 +59,7 @@ public final class Worker {
     InputStream stdin = System.in;
     PrintStream stdout = System.out;
     PrintStream stderr = System.err;
-    ByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
+    ThreadOutputStream outStream = new ThreadOutputStream();
     PrintStream out = new PrintStream(outStream);
 
     // We can't support stdin, so assign it to read from an empty buffer
@@ -156,6 +159,46 @@ public final class Worker {
       if (this.isOversized()) {
         this.buf = new byte[DEFAULT_SIZE];
       }
+    }
+  }
+
+  static class ThreadOutputStream extends OutputStream {
+    private static AbstractMap<Long, SmartByteArrayOutputStream> map = new ConcurrentHashMap<Long, SmartByteArrayOutputStream>();
+
+    private static SmartByteArrayOutputStream getStream() {
+      Long id = Thread.currentThread().getId();
+      return map.computeIfAbsent(id, key -> new SmartByteArrayOutputStream());
+    }
+
+    public ThreadOutputStream() {}
+
+    @Override
+    public void close() throws IOException {
+      getStream().close();
+    }
+
+    @Override
+    public void flush() throws IOException {
+      getStream().flush();
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+      getStream().write(b, off, len);
+    }
+
+    @Override
+    public void write(int b) throws IOException  {
+      getStream().write(b);
+    }
+
+    public void reset() {
+      getStream().reset();
+    }
+
+    @Override
+    public String toString() {
+      return getStream().toString();
     }
   }
 
