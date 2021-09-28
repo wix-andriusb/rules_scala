@@ -129,22 +129,23 @@ public final class Worker {
       code = 1;
     }
 
-    WorkerProtocol.WorkResponse response =
-        WorkerProtocol.WorkResponse.newBuilder()
-            .setExitCode(code)
-            .setOutput(outStream.toString())
-            .setRequestId(request.getRequestId())
-            .build();
-
     try {
+      out.flush();
+      WorkerProtocol.WorkResponse response =
+          WorkerProtocol.WorkResponse.newBuilder()
+              .setExitCode(code)
+              .setOutput(outStream.toString())
+              .setRequestId(request.getRequestId())
+              .build();
+
       synchronized (lock) {
         response.writeDelimitedTo(stdout);
-        out.flush();
-        outStream.reset();
       }
       System.gc();
     } catch (IOException exception) {
       // TODO: propagate exception
+    } finally {
+      outStream.reset();
     }
   }
 
