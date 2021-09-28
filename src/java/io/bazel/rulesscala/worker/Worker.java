@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public final class Worker {
 
-  private static ExecutorService executorService = Executors.newFixedThreadPool(10);
+  private static ExecutorService executorService = Executors.newCachedThreadPool();
 
   public static interface Interface {
     public void work(String[] args) throws Exception;
