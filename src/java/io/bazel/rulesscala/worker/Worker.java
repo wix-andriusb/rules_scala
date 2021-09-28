@@ -5,25 +5,31 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.Permission;
+import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * A base for JVM workers.
  *
- * <p>This supports regular workers as well as persisent workers. It does not (yet) support
- * multiplexed workers.
+ * <p>This supports regular workers as well as persisent workers.
  *
  * <p>Worker implementations should implement the `Worker.Interface` interface and provide a main
  * method that calls `Worker.workerMain`.
  */
 public final class Worker {
+
+  private static ExecutorService executorService = Executors.newCachedThreadPool();
 
   public static interface Interface {
     public void work(String[] args) throws Exception;
@@ -56,7 +62,7 @@ public final class Worker {
     InputStream stdin = System.in;
     PrintStream stdout = System.out;
     PrintStream stderr = System.err;
-    ByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
+    ThreadOutputStream outStream = new ThreadOutputStream();
     PrintStream out = new PrintStream(outStream);
 
     // We can't support stdin, so assign it to read from an empty buffer
@@ -78,37 +84,65 @@ public final class Worker {
             break;
           }
 
-          int code = 0;
-
-          try {
-            workerInterface.work(stringListToArray(request.getArgumentsList()));
-          } catch (ExitTrapped e) {
-            code = e.code;
-          } catch (Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-            code = 1;
+          if (request.getRequestId() == 0) {
+            processWorkRequest(workerInterface, request, stdout, outStream, out);
+          } else {
+            executorService.submit(
+                () -> {
+                  processWorkRequest(workerInterface, request, stdout, outStream, out);
+                });
           }
-
-          WorkerProtocol.WorkResponse.newBuilder()
-              .setExitCode(code)
-              .setOutput(outStream.toString())
-              .build()
-              .writeDelimitedTo(stdout);
 
         } catch (IOException e) {
           // for now we swallow IOExceptions when
-          // reading/writing proto
-        } finally {
-          out.flush();
-          outStream.reset();
-          System.gc();
+          // reading proto
         }
       }
     } finally {
       System.setIn(stdin);
       System.setOut(stdout);
       System.setErr(stderr);
+    }
+  }
+
+  private static Object lock = new Object();
+
+  private static void processWorkRequest(
+      Interface workerInterface,
+      WorkerProtocol.WorkRequest request,
+      PrintStream stdout,
+      ThreadOutputStream outStream,
+      PrintStream out) {
+    int code = 0;
+
+    try {
+      workerInterface.work(stringListToArray(request.getArgumentsList()));
+    } catch (ExitTrapped e) {
+      code = e.code;
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      e.printStackTrace();
+      code = 1;
+    }
+
+    try {
+      out.flush();
+      WorkerProtocol.WorkResponse response =
+          WorkerProtocol.WorkResponse.newBuilder()
+              .setExitCode(code)
+              .setOutput(outStream.toString())
+              .setRequestId(request.getRequestId())
+              .build();
+
+      synchronized (lock) {
+        response.writeDelimitedTo(stdout);
+      }
+      System.gc();
+    } catch (IOException exception) {
+      // for now we swallow IOExceptions when
+      // writing proto
+    } finally {
+      outStream.reset();
     }
   }
 
@@ -156,6 +190,47 @@ public final class Worker {
       if (this.isOversized()) {
         this.buf = new byte[DEFAULT_SIZE];
       }
+    }
+  }
+
+  static class ThreadOutputStream extends OutputStream {
+    private static AbstractMap<Long, SmartByteArrayOutputStream> map =
+        new ConcurrentHashMap<Long, SmartByteArrayOutputStream>();
+
+    private static SmartByteArrayOutputStream getStream() {
+      Long id = Thread.currentThread().getId();
+      return map.computeIfAbsent(id, key -> new SmartByteArrayOutputStream());
+    }
+
+    public ThreadOutputStream() {}
+
+    @Override
+    public void close() throws IOException {
+      getStream().close();
+    }
+
+    @Override
+    public void flush() throws IOException {
+      getStream().flush();
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+      getStream().write(b, off, len);
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+      getStream().write(b);
+    }
+
+    public void reset() {
+      getStream().reset();
+    }
+
+    @Override
+    public String toString() {
+      return getStream().toString();
     }
   }
 
