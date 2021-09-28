@@ -96,10 +96,6 @@ public final class Worker {
         } catch (IOException e) {
           // for now we swallow IOExceptions when
           // reading/writing proto
-        } finally {
-          out.flush();
-          outStream.reset();
-          System.gc();
         }
       }
     } finally {
