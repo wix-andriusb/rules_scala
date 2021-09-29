@@ -1,5 +1,6 @@
 package scripts
 
+import java.io.PrintStream
 import java.io.File.pathSeparatorChar
 import java.net.URLClassLoader
 import java.nio.file.{Files, Paths}
@@ -11,9 +12,9 @@ import scala.sys.process._
 
 object ScalaPBWorker extends Worker.Interface {
 
-  private val protoc = {
+  private def protoc(out: PrintStream) = {
     val executable = sys.props.getOrElse("PROTOC", sys.error("PROTOC not supplied"))
-    (args: Seq[String]) => Process(executable, args).!(ProcessLogger(stderr.println(_)))
+    (args: Seq[String]) => Process(executable, args).!(ProcessLogger(out.println(_)))
   }
 
   private val classes = {
@@ -38,8 +39,8 @@ object ScalaPBWorker extends Worker.Interface {
 
   def main(args: Array[String]): Unit = Worker.workerMain(args, ScalaPBWorker)
 
-  def work(args: Array[String]) {
-    val code = ProtocBridge.runWithGenerators(protoc, generators, args)
+  def work(args: Array[String], out: PrintStream, err: PrintStream) {
+    val code = ProtocBridge.runWithGenerators(protoc(err), generators, args)
     if (code != 0) {
       sys.error(s"Exit with code $code")
     }

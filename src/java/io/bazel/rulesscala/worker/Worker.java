@@ -5,28 +5,35 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.Permission;
+import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * A base for JVM workers.
  *
- * <p>This supports regular workers as well as persisent workers. It does not (yet) support
- * multiplexed workers.
+ * <p>This supports regular workers as well as persisent workers.
  *
  * <p>Worker implementations should implement the `Worker.Interface` interface and provide a main
  * method that calls `Worker.workerMain`.
  */
 public final class Worker {
 
+  private static ExecutorService executorService = Executors.newFixedThreadPool(10);
+
   public static interface Interface {
-    public void work(String[] args) throws Exception;
+    public void work(String[] args, PrintStream out, PrintStream err) throws Exception;
   }
 
   /**
@@ -54,16 +61,9 @@ public final class Worker {
         });
 
     InputStream stdin = System.in;
-    PrintStream stdout = System.out;
-    PrintStream stderr = System.err;
-    ByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
-    PrintStream out = new PrintStream(outStream);
 
     // We can't support stdin, so assign it to read from an empty buffer
     System.setIn(new ByteArrayInputStream(new byte[0]));
-
-    System.setOut(out);
-    System.setErr(out);
 
     try {
       while (true) {
@@ -78,37 +78,61 @@ public final class Worker {
             break;
           }
 
-          int code = 0;
-
-          try {
-            workerInterface.work(stringListToArray(request.getArgumentsList()));
-          } catch (ExitTrapped e) {
-            code = e.code;
-          } catch (Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-            code = 1;
+          if (request.getRequestId() == 0) {
+            processWorkRequest(workerInterface, request);
+          } else {
+            executorService.submit(
+                () -> {
+                  processWorkRequest(workerInterface, request);
+                });
           }
-
-          WorkerProtocol.WorkResponse.newBuilder()
-              .setExitCode(code)
-              .setOutput(outStream.toString())
-              .build()
-              .writeDelimitedTo(stdout);
 
         } catch (IOException e) {
           // for now we swallow IOExceptions when
-          // reading/writing proto
-        } finally {
-          out.flush();
-          outStream.reset();
-          System.gc();
+          // reading proto
         }
       }
     } finally {
       System.setIn(stdin);
-      System.setOut(stdout);
-      System.setErr(stderr);
+    }
+  }
+
+  private static Object lock = new Object();
+
+  private static void processWorkRequest(
+      Interface workerInterface, WorkerProtocol.WorkRequest request) {
+    int code = 0;
+    SmartByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
+    PrintStream out = new PrintStream(outStream);
+
+    try {
+      workerInterface.work(stringListToArray(request.getArgumentsList()), out, out);
+    } catch (ExitTrapped e) {
+      code = e.code;
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      e.printStackTrace();
+      code = 1;
+    }
+
+    try {
+      out.flush();
+      WorkerProtocol.WorkResponse response =
+          WorkerProtocol.WorkResponse.newBuilder()
+              .setExitCode(code)
+              .setOutput(outStream.toString())
+              .setRequestId(request.getRequestId())
+              .build();
+
+      synchronized (lock) {
+        response.writeDelimitedTo(System.out);
+      }
+      System.gc();
+    } catch (IOException exception) {
+      // for now we swallow IOExceptions when
+      // writing proto
+    } finally {
+      outStream.reset();
     }
   }
 
@@ -123,7 +147,7 @@ public final class Worker {
     } else {
       args = workerArgs;
     }
-    workerInterface.work(args);
+    workerInterface.work(args, System.out, System.err);
   }
 
   /**

@@ -1,7 +1,12 @@
 package io.bazel.rulesscala.scalac;
 
 import io.bazel.rules_scala.diagnostics.Diagnostics;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -15,8 +20,12 @@ public class ProtoReporter extends ConsoleReporter {
 
   private final Map<String, List<Diagnostics.Diagnostic>> builder;
 
-  public ProtoReporter(Settings settings) {
-    super(settings);
+  public ProtoReporter(Settings settings, PrintStream out, PrintStream err) {
+    super(
+        settings,
+        new BufferedReader(new InputStreamReader(new ByteArrayInputStream(new byte[0]))),
+        new PrintWriter(out),
+        new PrintWriter(err));
     builder = new LinkedHashMap<>();
   }
 

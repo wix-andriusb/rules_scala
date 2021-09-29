@@ -25,7 +25,7 @@ public class WorkerTest {
     Worker.Interface worker =
         new Worker.Interface() {
           @Override
-          public void work(String[] args) {
+          public void work(String[] args, PrintStream out, PrintStream err) {
             System.exit(99);
           }
         };
@@ -50,7 +50,7 @@ public class WorkerTest {
       Worker.Interface worker =
           new Worker.Interface() {
             @Override
-            public void work(String[] args) {
+            public void work(String[] args, PrintStream out, PrintStream err) {
               // we should see this print statement
               System.out.println("before exit");
               System.exit(100);
@@ -79,7 +79,7 @@ public class WorkerTest {
       Worker.Interface worker =
           new Worker.Interface() {
             @Override
-            public void work(String[] args) throws Exception {
+            public void work(String[] args, PrintStream out, PrintStream err) throws Exception {
               result.set(System.in.read());
             }
           };

@@ -2,6 +2,7 @@ package scripts
 
 
 import java.io.File
+import java.io.PrintStream
 import java.nio.file.{ Files, Path, Paths }
 
 import com.twitter.scrooge.{ ScroogeConfig, ScroogeOptionParser }
@@ -21,7 +22,7 @@ object ScroogeWorker extends Worker.Interface {
       case e: Exception => ()
     }
 
-  def work(args: Array[String]) {
+  def work(args: Array[String], out: PrintStream, err: PrintStream) {
     def getIdx(i: Int): List[String] = {
       if (args.size > i) {
         // bazel worker arguments cannot be empty so we pad to ensure non-empty
