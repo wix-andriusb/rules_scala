@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  */
 public final class Worker {
 
-  private static ExecutorService executorService = Executors.newCachedThreadPool();
+  private static ExecutorService executorService = Executors.newFixedThreadPool(10);
 
   public static interface Interface {
     public void work(String[] args, PrintStream out, PrintStream err) throws Exception;
