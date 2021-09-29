@@ -100,12 +100,10 @@ public final class Worker {
   private static Object lock = new Object();
 
   private static void processWorkRequest(
-      Interface workerInterface,
-      WorkerProtocol.WorkRequest request) {
+      Interface workerInterface, WorkerProtocol.WorkRequest request) {
     int code = 0;
     SmartByteArrayOutputStream outStream = new SmartByteArrayOutputStream();
     PrintStream out = new PrintStream(outStream);
-
 
     try {
       workerInterface.work(stringListToArray(request.getArgumentsList()), out, out);

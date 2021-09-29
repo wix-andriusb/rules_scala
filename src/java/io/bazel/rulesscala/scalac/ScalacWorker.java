@@ -229,7 +229,8 @@ class ScalacWorker implements Worker.Interface {
     return pluginParams.toArray(new String[pluginParams.size()]);
   }
 
-  private static void compileScalaSources(CompileOptions ops, String[] scalaSources, Path tmpPath, PrintStream out, PrintStream err)
+  private static void compileScalaSources(
+      CompileOptions ops, String[] scalaSources, Path tmpPath, PrintStream out, PrintStream err)
       throws IllegalAccessException, IOException {
 
     String[] pluginArgs = buildPluginArgs(ops.plugins);
