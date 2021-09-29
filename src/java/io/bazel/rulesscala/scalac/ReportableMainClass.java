@@ -2,13 +2,20 @@ package io.bazel.rulesscala.scalac;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import scala.tools.nsc.Global;
+import scala.tools.nsc.Global$;
 import scala.tools.nsc.MainClass;
 import scala.tools.nsc.Settings;
 import scala.tools.nsc.reporters.Reporter;
+import scala.tools.nsc.reporters.ConsoleReporter;
 
 public class ReportableMainClass extends MainClass {
   private Global compiler;
@@ -27,10 +34,11 @@ public class ReportableMainClass extends MainClass {
   public Global newCompiler() {
     if (!ops.enableDiagnosticsReport) {
       createDiagnosticsFile();
-      Global global = super.newCompiler();
-
       Settings settings = super.settings();
-      reporter = new ProtoReporter(settings, out, err);
+      InputStream inputStream = new ByteArrayInputStream(new byte[0]);
+      BufferedReader br = new BufferedReader(new InputStreamReader(inputStream));
+      reporter = new ConsoleReporter(settings, br, new PrintWriter(out, true), new PrintWriter(out, true));
+      Global global = new Global(settings, reporter);
 
       return global;
     }
